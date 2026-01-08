@@ -1,32 +1,55 @@
-'use client'
+"use client";
 
-import { useState } from 'react'
-import { useRouter } from 'next/navigation'
-import Link from 'next/link'
+import { useEffect } from "react";
+import { useRouter } from "next/navigation";
+import Link from "next/link";
+import { useForm } from "react-hook-form";
+import { z } from "zod";
+import { zodResolver } from "@hookform/resolvers/zod";
+
+const FinderSchema = z.object({
+  sex: z.enum(["male", "female", "other"], {
+    required_error: "Please select a gender",
+  }),
+  age: z
+    .number({ invalid_type_error: "Age is required" })
+    .int()
+    .min(1, "Age must be at least 1")
+    .max(120, "Age must be 120 or less"),
+  national: z.string().min(2, "Enter a valid nationality"),
+  job: z.string().min(2, "Enter a valid job/profession"),
+});
+
+type FinderForm = z.infer<typeof FinderSchema>;
 
 export default function Home() {
-  const router = useRouter()
-  const [formData, setFormData] = useState({
-    sex: '',
-    age: '',
-    national: '',
-    job: '',
-  })
-  const [isSubmitting, setIsSubmitting] = useState(false)
+  const router = useRouter();
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setIsSubmitting(true)
+  const {
+    register,
+    handleSubmit,
+    formState: { errors, isSubmitting },
+    setValue,
+  } = useForm<FinderForm>({
+    resolver: zodResolver(FinderSchema),
+    defaultValues: { sex: "male", age: 25, national: "", job: "" } as any,
+  });
 
+  useEffect(() => {
+    // ensure age input is numeric if page loads with empty value
+    setValue("age", 25 as any);
+  }, [setValue]);
+
+  const onSubmit = async (data: FinderForm) => {
     const params = new URLSearchParams({
-      sex: formData.sex,
-      age: formData.age,
-      national: formData.national,
-      job: formData.job,
-    })
+      sex: data.sex,
+      age: String(data.age),
+      national: data.national,
+      job: data.job,
+    });
 
-    router.push(`/results?${params.toString()}`)
-  }
+    router.push(`/results?${params.toString()}`);
+  };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-valentine-light via-pink-50 to-red-50">
@@ -42,70 +65,116 @@ export default function Home() {
           </div>
 
           <div className="bg-white rounded-2xl shadow-xl p-8 mb-6">
-            <form onSubmit={handleSubmit} className="space-y-6">
+            <form
+              onSubmit={handleSubmit(onSubmit)}
+              className="space-y-6"
+              noValidate
+            >
               <div>
-                <label htmlFor="sex" className="block text-sm font-medium text-gray-700 mb-2">
+                <label
+                  htmlFor="sex"
+                  className="block text-sm font-medium text-gray-700 mb-2"
+                >
                   Gender *
                 </label>
                 <select
                   id="sex"
-                  required
-                  value={formData.sex}
-                  onChange={(e) => setFormData({ ...formData, sex: e.target.value })}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-valentine-pink focus:border-transparent"
+                  aria-invalid={errors.sex ? "true" : "false"}
+                  aria-describedby={errors.sex ? "sex-error" : undefined}
+                  {...register("sex")}
+                  className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-valentine-pink focus:border-transparent ${
+                    errors.sex ? "border-red-500" : "border-gray-300"
+                  }`}
                 >
                   <option value="">Select gender</option>
                   <option value="male">Male</option>
                   <option value="female">Female</option>
                   <option value="other">Other</option>
                 </select>
+                {errors.sex && (
+                  <p id="sex-error" className="mt-2 text-sm text-red-600">
+                    {String(errors.sex.message)}
+                  </p>
+                )}
               </div>
 
               <div>
-                <label htmlFor="age" className="block text-sm font-medium text-gray-700 mb-2">
+                <label
+                  htmlFor="age"
+                  className="block text-sm font-medium text-gray-700 mb-2"
+                >
                   Age *
                 </label>
                 <input
                   type="number"
                   id="age"
-                  required
-                  min="1"
-                  max="120"
-                  value={formData.age}
-                  onChange={(e) => setFormData({ ...formData, age: e.target.value })}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-valentine-pink focus:border-transparent"
+                  aria-invalid={errors.age ? "true" : "false"}
+                  aria-describedby={errors.age ? "age-error" : undefined}
+                  {...register("age", { valueAsNumber: true })}
+                  min={1}
+                  max={120}
+                  className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-valentine-pink focus:border-transparent ${
+                    errors.age ? "border-red-500" : "border-gray-300"
+                  }`}
                   placeholder="Enter age"
                 />
+                {errors.age && (
+                  <p id="age-error" className="mt-2 text-sm text-red-600">
+                    {String(errors.age.message)}
+                  </p>
+                )}
               </div>
 
               <div>
-                <label htmlFor="national" className="block text-sm font-medium text-gray-700 mb-2">
+                <label
+                  htmlFor="national"
+                  className="block text-sm font-medium text-gray-700 mb-2"
+                >
                   Nationality *
                 </label>
                 <input
                   type="text"
                   id="national"
-                  required
-                  value={formData.national}
-                  onChange={(e) => setFormData({ ...formData, national: e.target.value })}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-valentine-pink focus:border-transparent"
+                  aria-invalid={errors.national ? "true" : "false"}
+                  aria-describedby={
+                    errors.national ? "national-error" : undefined
+                  }
+                  {...register("national")}
+                  className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-valentine-pink focus:border-transparent ${
+                    errors.national ? "border-red-500" : "border-gray-300"
+                  }`}
                   placeholder="e.g., American, Japanese"
                 />
+                {errors.national && (
+                  <p id="national-error" className="mt-2 text-sm text-red-600">
+                    {String(errors.national.message)}
+                  </p>
+                )}
               </div>
 
               <div>
-                <label htmlFor="job" className="block text-sm font-medium text-gray-700 mb-2">
+                <label
+                  htmlFor="job"
+                  className="block text-sm font-medium text-gray-700 mb-2"
+                >
                   Job/Profession *
                 </label>
                 <input
                   type="text"
                   id="job"
-                  required
-                  value={formData.job}
-                  onChange={(e) => setFormData({ ...formData, job: e.target.value })}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-valentine-pink focus:border-transparent"
+                  aria-invalid={errors.job ? "true" : "false"}
+                  aria-describedby={errors.job ? "job-error" : undefined}
+                  {...register("job")}
+                  className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-valentine-pink focus:border-transparent ${
+                    errors.job ? "border-red-500" : "border-gray-300"
+                  }`}
                   placeholder="e.g., Engineer, Teacher, Student"
                 />
+                {errors.job && (
+                  <p id="job-error" className="mt-2 text-sm text-red-600">
+                    {String(errors.job.message)}
+                  </p>
+                )}
               </div>
 
               <button
@@ -113,7 +182,7 @@ export default function Home() {
                 disabled={isSubmitting}
                 className="w-full bg-gradient-to-r from-valentine-pink to-valentine-red text-white py-4 rounded-lg font-semibold text-lg hover:shadow-lg transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {isSubmitting ? 'Finding Gifts...' : 'Find Perfect Gifts 💝'}
+                {isSubmitting ? "Finding Gifts..." : "Find Perfect Gifts 💝"}
               </button>
             </form>
           </div>
@@ -129,6 +198,5 @@ export default function Home() {
         </div>
       </div>
     </div>
-  )
+  );
 }
-
