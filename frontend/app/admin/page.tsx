@@ -1,110 +1,129 @@
-'use client'
+"use client";
 
-import { useState, useEffect, useRef } from 'react'
-import { Gift } from '@/types/gift'
-import Link from 'next/link'
-import { fetchGifts, addGift, deleteGift, getImageUrl } from '@/lib/api'
+import { useState, useEffect, useRef } from "react";
+import { Gift } from "@/types/gift";
+import Link from "next/link";
+import { useForm } from "react-hook-form";
+import { z } from "zod";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { fetchGifts, addGift, deleteGift, getImageUrl } from "@/lib/api";
+
+const GiftSchema = z
+  .object({
+    name: z.string().min(1, "Gift name is required"),
+    description: z.string().min(1, "Description is required"),
+    price: z
+      .number({ invalid_type_error: "Price must be a number" })
+      .positive("Price must be positive"),
+    image: z.string().optional(),
+    gender: z.string().optional(),
+    ageMin: z.number().optional(),
+    ageMax: z.number().optional(),
+    nationalities: z.string().optional(),
+    jobs: z.string().optional(),
+  })
+  .refine(
+    (data) => {
+      if (data.ageMin && data.ageMax) {
+        return data.ageMin <= data.ageMax;
+      }
+      return true;
+    },
+    {
+      message: "Age min must be less than or equal to age max",
+      path: ["ageMax"],
+    }
+  );
+
+type GiftForm = z.infer<typeof GiftSchema>;
 
 export default function AdminPage() {
-  const [gifts, setGifts] = useState<Gift[]>([])
-  const [loading, setLoading] = useState(true)
-  const [showForm, setShowForm] = useState(false)
-  const [formData, setFormData] = useState({
-    name: '',
-    description: '',
-    price: '',
-    image: '',
-    gender: '',
-    ageMin: '',
-    ageMax: '',
-    nationalities: '',
-    jobs: '',
-  })
-  const [imageFile, setImageFile] = useState<File | null>(null)
-  const fileInputRef = useRef<HTMLInputElement>(null)
+  const [gifts, setGifts] = useState<Gift[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [showForm, setShowForm] = useState(false);
+  const [imageFile, setImageFile] = useState<File | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const {
+    register,
+    handleSubmit,
+    formState: { errors, isSubmitting },
+    reset,
+    setValue,
+  } = useForm<GiftForm>({
+    resolver: zodResolver(GiftSchema),
+  });
 
   useEffect(() => {
-    loadGifts()
-  }, [])
+    loadGifts();
+  }, []);
 
   const loadGifts = async () => {
     try {
-      const data = await fetchGifts()
-      setGifts(data.gifts || [])
+      const data = await fetchGifts();
+      setGifts(data.gifts || []);
     } catch (error) {
-      console.error('Error loading gifts:', error)
+      console.error("Error loading gifts:", error);
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }
+  };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-
+  const onSubmit = async (data: GiftForm) => {
     try {
-      const formDataToSend = new FormData()
-      formDataToSend.append('name', formData.name)
-      formDataToSend.append('description', formData.description)
-      formDataToSend.append('price', formData.price)
-      
+      const formDataToSend = new FormData();
+      formDataToSend.append("name", data.name);
+      formDataToSend.append("description", data.description);
+      formDataToSend.append("price", data.price.toString());
+
       if (imageFile) {
-        formDataToSend.append('image', imageFile)
-      } else if (formData.image) {
-        formDataToSend.append('imageUrl', formData.image)
-      }
-      
-      if (formData.gender) {
-        formDataToSend.append('gender', formData.gender)
-      }
-      if (formData.ageMin) {
-        formDataToSend.append('ageMin', formData.ageMin)
-      }
-      if (formData.ageMax) {
-        formDataToSend.append('ageMax', formData.ageMax)
-      }
-      if (formData.nationalities) {
-        formDataToSend.append('nationalities', formData.nationalities)
-      }
-      if (formData.jobs) {
-        formDataToSend.append('jobs', formData.jobs)
+        formDataToSend.append("image", imageFile);
+      } else if (data.image) {
+        formDataToSend.append("imageUrl", data.image);
       }
 
-      await addGift(formDataToSend)
-      
-      setFormData({
-        name: '',
-        description: '',
-        price: '',
-        image: '',
-        gender: '',
-        ageMin: '',
-        ageMax: '',
-        nationalities: '',
-        jobs: '',
-      })
-      setImageFile(null)
-      if (fileInputRef.current) {
-        fileInputRef.current.value = ''
+      if (data.gender) {
+        formDataToSend.append("gender", data.gender);
       }
-      setShowForm(false)
-      loadGifts()
+      if (data.ageMin !== undefined) {
+        formDataToSend.append("ageMin", data.ageMin.toString());
+      }
+      if (data.ageMax !== undefined) {
+        formDataToSend.append("ageMax", data.ageMax.toString());
+      }
+      if (data.nationalities) {
+        formDataToSend.append("nationalities", data.nationalities);
+      }
+      if (data.jobs) {
+        formDataToSend.append("jobs", data.jobs);
+      }
+
+      await addGift(formDataToSend);
+
+      reset();
+      setImageFile(null);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = "";
+      }
+      setShowForm(false);
+      loadGifts();
     } catch (error) {
-      console.error('Error adding gift:', error)
-      alert('Failed to add gift')
+      console.error("Error adding gift:", error);
+      alert("Failed to add gift");
     }
-  }
+  };
 
   const handleDelete = async (id: string) => {
-    if (!confirm('Are you sure you want to delete this gift?')) return
+    if (!confirm("Are you sure you want to delete this gift?")) return;
 
     try {
-      await deleteGift(id)
-      loadGifts()
+      await deleteGift(id);
+      loadGifts();
     } catch (error) {
-      console.error('Error deleting gift:', error)
-      alert('Failed to delete gift')
+      console.error("Error deleting gift:", error);
+      alert("Failed to delete gift");
     }
-  }
+  };
 
   if (loading) {
     return (
@@ -114,7 +133,7 @@ export default function AdminPage() {
           <p className="text-xl text-gray-700">Loading...</p>
         </div>
       </div>
-    )
+    );
   }
 
   return (
@@ -133,21 +152,28 @@ export default function AdminPage() {
                 Gift Management
               </h1>
               <p className="text-gray-700">
-                Manage your store's gift inventory ({gifts.length} {gifts.length === 1 ? 'gift' : 'gifts'})
+                Manage your store's gift inventory ({gifts.length}{" "}
+                {gifts.length === 1 ? "gift" : "gifts"})
               </p>
             </div>
             <button
               onClick={() => setShowForm(!showForm)}
               className="bg-gradient-to-r from-valentine-pink to-valentine-red text-white px-6 py-3 rounded-lg font-semibold hover:shadow-lg transition-all"
             >
-              {showForm ? 'Cancel' : '+ Add New Gift'}
+              {showForm ? "Cancel" : "+ Add New Gift"}
             </button>
           </div>
 
           {showForm && (
             <div className="bg-white rounded-2xl shadow-xl p-8 mb-8">
-              <h2 className="text-2xl font-bold text-gray-800 mb-6">Add New Gift</h2>
-              <form onSubmit={handleSubmit} className="space-y-4">
+              <h2 className="text-2xl font-bold text-gray-800 mb-6">
+                Add New Gift
+              </h2>
+              <form
+                onSubmit={handleSubmit(onSubmit)}
+                className="space-y-4"
+                noValidate
+              >
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -155,11 +181,16 @@ export default function AdminPage() {
                     </label>
                     <input
                       type="text"
-                      required
-                      value={formData.name}
-                      onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-valentine-pink"
+                      {...register("name")}
+                      className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-valentine-pink ${
+                        errors.name ? "border-red-500" : "border-gray-300"
+                      }`}
                     />
+                    {errors.name && (
+                      <p className="mt-1 text-sm text-red-600">
+                        {errors.name.message}
+                      </p>
+                    )}
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -168,11 +199,16 @@ export default function AdminPage() {
                     <input
                       type="number"
                       step="0.01"
-                      required
-                      value={formData.price}
-                      onChange={(e) => setFormData({ ...formData, price: e.target.value })}
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-valentine-pink"
+                      {...register("price", { valueAsNumber: true })}
+                      className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-valentine-pink ${
+                        errors.price ? "border-red-500" : "border-gray-300"
+                      }`}
                     />
+                    {errors.price && (
+                      <p className="mt-1 text-sm text-red-600">
+                        {errors.price.message}
+                      </p>
+                    )}
                   </div>
                 </div>
 
@@ -181,12 +217,17 @@ export default function AdminPage() {
                     Description *
                   </label>
                   <textarea
-                    required
-                    value={formData.description}
-                    onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                    {...register("description")}
                     rows={3}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-valentine-pink"
+                    className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-valentine-pink ${
+                      errors.description ? "border-red-500" : "border-gray-300"
+                    }`}
                   />
+                  {errors.description && (
+                    <p className="mt-1 text-sm text-red-600">
+                      {errors.description.message}
+                    </p>
+                  )}
                 </div>
 
                 <div className="space-y-2">
@@ -198,31 +239,33 @@ export default function AdminPage() {
                     type="file"
                     accept="image/*"
                     onChange={(e) => {
-                      const file = e.target.files?.[0]
+                      const file = e.target.files?.[0];
                       if (file) {
-                        setImageFile(file)
-                        setFormData({ ...formData, image: '' })
+                        setImageFile(file);
+                        setValue("image", "");
                       }
                     }}
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-valentine-pink"
                   />
                   {imageFile && (
-                    <p className="text-sm text-gray-600">Selected: {imageFile.name}</p>
+                    <p className="text-sm text-gray-600">
+                      Selected: {imageFile.name}
+                    </p>
                   )}
                   <div className="text-sm text-gray-500">OR</div>
                   <input
                     type="url"
-                    value={formData.image}
-                    onChange={(e) => {
-                      setFormData({ ...formData, image: e.target.value })
-                      setImageFile(null)
-                      if (fileInputRef.current) {
-                        fileInputRef.current.value = ''
-                      }
-                    }}
+                    {...register("image")}
                     placeholder="Enter image URL"
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-valentine-pink"
+                    className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-valentine-pink ${
+                      errors.image ? "border-red-500" : "border-gray-300"
+                    }`}
                   />
+                  {errors.image && (
+                    <p className="mt-1 text-sm text-red-600">
+                      {errors.image.message}
+                    </p>
+                  )}
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -232,11 +275,17 @@ export default function AdminPage() {
                     </label>
                     <input
                       type="text"
-                      value={formData.gender}
-                      onChange={(e) => setFormData({ ...formData, gender: e.target.value })}
+                      {...register("gender")}
                       placeholder="e.g., male, female"
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-valentine-pink"
+                      className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-valentine-pink ${
+                        errors.gender ? "border-red-500" : "border-gray-300"
+                      }`}
                     />
+                    {errors.gender && (
+                      <p className="mt-1 text-sm text-red-600">
+                        {errors.gender.message}
+                      </p>
+                    )}
                   </div>
                   <div className="grid grid-cols-2 gap-2">
                     <div>
@@ -245,10 +294,16 @@ export default function AdminPage() {
                       </label>
                       <input
                         type="number"
-                        value={formData.ageMin}
-                        onChange={(e) => setFormData({ ...formData, ageMin: e.target.value })}
-                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-valentine-pink"
+                        {...register("ageMin", { valueAsNumber: true })}
+                        className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-valentine-pink ${
+                          errors.ageMin ? "border-red-500" : "border-gray-300"
+                        }`}
                       />
+                      {errors.ageMin && (
+                        <p className="mt-1 text-sm text-red-600">
+                          {errors.ageMin.message}
+                        </p>
+                      )}
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -256,10 +311,16 @@ export default function AdminPage() {
                       </label>
                       <input
                         type="number"
-                        value={formData.ageMax}
-                        onChange={(e) => setFormData({ ...formData, ageMax: e.target.value })}
-                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-valentine-pink"
+                        {...register("ageMax", { valueAsNumber: true })}
+                        className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-valentine-pink ${
+                          errors.ageMax ? "border-red-500" : "border-gray-300"
+                        }`}
                       />
+                      {errors.ageMax && (
+                        <p className="mt-1 text-sm text-red-600">
+                          {errors.ageMax.message}
+                        </p>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -270,11 +331,19 @@ export default function AdminPage() {
                   </label>
                   <input
                     type="text"
-                    value={formData.nationalities}
-                    onChange={(e) => setFormData({ ...formData, nationalities: e.target.value })}
+                    {...register("nationalities")}
                     placeholder="e.g., American, Japanese"
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-valentine-pink"
+                    className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-valentine-pink ${
+                      errors.nationalities
+                        ? "border-red-500"
+                        : "border-gray-300"
+                    }`}
                   />
+                  {errors.nationalities && (
+                    <p className="mt-1 text-sm text-red-600">
+                      {errors.nationalities.message}
+                    </p>
+                  )}
                 </div>
 
                 <div>
@@ -283,18 +352,25 @@ export default function AdminPage() {
                   </label>
                   <input
                     type="text"
-                    value={formData.jobs}
-                    onChange={(e) => setFormData({ ...formData, jobs: e.target.value })}
+                    {...register("jobs")}
                     placeholder="e.g., Engineer, Teacher, Student"
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-valentine-pink"
+                    className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-valentine-pink ${
+                      errors.jobs ? "border-red-500" : "border-gray-300"
+                    }`}
                   />
+                  {errors.jobs && (
+                    <p className="mt-1 text-sm text-red-600">
+                      {errors.jobs.message}
+                    </p>
+                  )}
                 </div>
 
                 <button
                   type="submit"
-                  className="w-full bg-gradient-to-r from-valentine-pink to-valentine-red text-white py-3 rounded-lg font-semibold hover:shadow-lg transition-all"
+                  disabled={isSubmitting}
+                  className="w-full bg-gradient-to-r from-valentine-pink to-valentine-red text-white py-3 rounded-lg font-semibold hover:shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  Add Gift
+                  {isSubmitting ? "Adding Gift..." : "Add Gift"}
                 </button>
               </form>
             </div>
@@ -362,6 +438,5 @@ export default function AdminPage() {
         </div>
       </div>
     </div>
-  )
+  );
 }
-
